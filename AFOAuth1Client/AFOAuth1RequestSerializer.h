@@ -29,7 +29,7 @@ typedef NS_ENUM(NSUInteger, AFOAuth1SignatureMethod) {
     AFOAuth1HMACSHA1SignatureMethod = 2,
 };
 
-@interface AFOAuth1RequestSerializer : AFHTTPRequestSerializer
+@interface AFOAuth1RequestSerializer : AFJSONRequestSerializer
 
 ///-----------------------------------
 /// @name Managing OAuth Configuration

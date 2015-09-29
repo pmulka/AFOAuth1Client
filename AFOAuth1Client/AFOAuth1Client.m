@@ -26,6 +26,7 @@
 #import "AFOAuth1Token.h"
 #import "AFOAuth1Utils.h"
 #import "AFURLResponseSerialization.h"
+#import "AFOAuth1ResponseSerializer.h"
 
 NSString * const kAFApplicationLaunchedWithURLNotification = @"kAFApplicationLaunchedWithURLNotification";
 #if __IPHONE_OS_VERSION_MIN_REQUIRED
@@ -74,8 +75,7 @@ NSString * const kAFApplicationLaunchOptionsURLKey = @"NSApplicationLaunchOption
     }
     
     self.requestSerializer = [AFOAuth1RequestSerializer serializerWithKey:key secret:secret];
-    self.responseSerializer = [AFHTTPResponseSerializer serializer]; // FIXME: (me@lxcid.com) Review to see whether we should introduce our own response serializer?
-    
+    self.responseSerializer = [AFOAuth1ResponseSerializer serializer];
     return self;
 }
 
@@ -93,7 +93,7 @@ NSString * const kAFApplicationLaunchOptionsURLKey = @"NSApplicationLaunchOption
                                                scope:(NSString *)scope
                                              success:(void (^)(AFOAuth1Token *accessToken, id responseObject))success
                                              failure:(void (^)(NSError *error))failure {
-    NSURLSessionDataTask * __unused acquireOAuthRequestTokenTask = [self acquireOAuthRequestTokenWithURLString:requestTokenURLString callbackURL:callbackURL accessMethod:(NSString *)accessMethod scope:scope success:^(AFOAuth1Token *requestToken, id responseObject) {
+    AFHTTPRequestOperation * __unused acquireOAuthRequestTokenTask = [self acquireOAuthRequestTokenWithURLString:requestTokenURLString callbackURL:callbackURL accessMethod:(NSString *)accessMethod scope:scope success:^(AFOAuth1Token *requestToken, id responseObject) {
         __block AFOAuth1Token *currentRequestToken = requestToken;
         
         NSNotificationCenter *defaultNotificationCenter = [NSNotificationCenter defaultCenter];
@@ -102,7 +102,7 @@ NSString * const kAFApplicationLaunchOptionsURLKey = @"NSApplicationLaunchOption
             
             currentRequestToken.verifier = [[AFOAuth1Utils parametersFromQueryString:URL.query] valueForKey:@"oauth_verifier"];
             
-            NSURLSessionDataTask * __unused acquireOAuthAccessTokenTask = [self acquireOAuthAccessTokenWithURLString:accessTokenURLString requestToken:currentRequestToken accessMethod:accessMethod success:^(AFOAuth1Token * accessToken, id responseObject) {
+            AFHTTPRequestOperation * __unused acquireOAuthAccessTokenTask = [self acquireOAuthAccessTokenWithURLString:accessTokenURLString requestToken:currentRequestToken accessMethod:accessMethod success:^(AFOAuth1Token * accessToken, id responseObject) {
                 if (self.serviceProviderRequestCompletion) {
                     self.serviceProviderRequestCompletion();
                 }
@@ -165,7 +165,7 @@ NSString * const kAFApplicationLaunchOptionsURLKey = @"NSApplicationLaunchOption
     }];
 }
 
-- (NSURLSessionDataTask *)acquireOAuthRequestTokenWithURLString:(NSString *)URLString
+- (AFHTTPRequestOperation *)acquireOAuthRequestTokenWithURLString:(NSString *)URLString
                                                     callbackURL:(NSURL *)callbackURL
                                                    accessMethod:(NSString *)accessMethod
                                                           scope:(NSString *)scope
@@ -199,34 +199,22 @@ NSString * const kAFApplicationLaunchOptionsURLKey = @"NSApplicationLaunchOption
         }
         return nil;
     }
-    
-    NSURLSessionDataTask *dataTask = [self dataTaskWithRequest:request completionHandler:^(NSURLResponse *response, id responseObject, NSError *error) {
-        if (error) {
-            if (failure) {
-                failure(error);
-            }
-            return;
-        }
-        
+
+    AFHTTPRequestOperation *operation = [self HTTPRequestOperationWithRequest:request success:^(AFHTTPRequestOperation * _Nonnull operation, id  _Nonnull responseObject) {
         if (success) {
-            NSStringEncoding stringEncoding = NSUTF8StringEncoding;
-            if (response.textEncodingName) {
-                CFStringRef cfTextEncodingName = (__bridge CFStringRef)response.textEncodingName;
-                CFStringEncoding cfStringEncoding = CFStringConvertIANACharSetNameToEncoding(cfTextEncodingName);
-                if (cfStringEncoding != kCFStringEncodingInvalidId) {
-                    stringEncoding = CFStringConvertEncodingToNSStringEncoding(cfStringEncoding);
-                }
-            }
-            NSString *queryString = [[NSString alloc] initWithData:responseObject encoding:stringEncoding];
-            AFOAuth1Token *accessToken = [[AFOAuth1Token alloc] initWithQueryString:queryString];
-            success(accessToken, responseObject);
+            success(responseObject, operation.responseData);
+        }
+    } failure:^(AFHTTPRequestOperation * _Nonnull operation, NSError * _Nonnull error) {
+        if (failure) {
+            failure(error);
         }
     }];
-    [dataTask resume];
-    return dataTask;
+    operation.responseSerializer = self.oauthResponseSerializer;
+    [self.operationQueue addOperation:operation];
+    return operation;
 }
 
-- (NSURLSessionDataTask *)acquireOAuthAccessTokenWithURLString:(NSString *)URLString
+- (AFHTTPRequestOperation *)acquireOAuthAccessTokenWithURLString:(NSString *)URLString
                                                   requestToken:(AFOAuth1Token *)requestToken
                                                   accessMethod:(NSString *)accessMethod
                                                        success:(void (^)(AFOAuth1Token *accessToken, id responseObject))success
@@ -266,30 +254,19 @@ NSString * const kAFApplicationLaunchOptionsURLKey = @"NSApplicationLaunchOption
         }
         return nil;
     }
-    NSURLSessionDataTask *dataTask = [self dataTaskWithRequest:request completionHandler:^(NSURLResponse *response, id responseObject, NSError *error) {
-        if (error) {
-            if (failure) {
-                failure(error);
-            }
-            return;
-        }
-        
+
+    AFHTTPRequestOperation *operation = [self HTTPRequestOperationWithRequest:request success:^(AFHTTPRequestOperation * _Nonnull operation, id  _Nonnull responseObject) {
         if (success) {
-            NSStringEncoding stringEncoding = NSUTF8StringEncoding;
-            if (response.textEncodingName) {
-                CFStringRef cfTextEncodingName = (__bridge CFStringRef)response.textEncodingName;
-                CFStringEncoding cfStringEncoding = CFStringConvertIANACharSetNameToEncoding(cfTextEncodingName);
-                if (cfStringEncoding != kCFStringEncodingInvalidId) {
-                    stringEncoding = CFStringConvertEncodingToNSStringEncoding(cfStringEncoding);
-                }
-            }
-            NSString *queryString = [[NSString alloc] initWithData:responseObject encoding:stringEncoding];
-            AFOAuth1Token *accessToken = [[AFOAuth1Token alloc] initWithQueryString:queryString];
-            success(accessToken, responseObject);
+            success(responseObject, operation.responseData);
+        }
+    } failure:^(AFHTTPRequestOperation * _Nonnull operation, NSError * _Nonnull error) {
+        if (failure) {
+            failure(error);
         }
     }];
-    [dataTask resume];
-    return dataTask;
+    operation.responseSerializer = self.oauthResponseSerializer;
+    [self.operationQueue addOperation:operation];
+    return operation;
 }
 
 #pragma mark - Configuring Service Provider Request Handling

@@ -20,7 +20,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#import "AFHTTPSessionManager.h"
+#import "AFHTTPRequestOperationManager.h"
+#import "AFURLResponseSerialization.h"
 
 ///---------------------------
 /// @name Forward Declarations
@@ -54,7 +55,12 @@ extern NSString * const kAFApplicationLaunchOptionsURLKey;
  
  @see RFC 5849 The OAuth 1.0 Protocol: https://tools.ietf.org/html/rfc5849
  */
-@interface AFOAuth1Client : AFHTTPSessionManager <NSCoding, NSCopying>
+@interface AFOAuth1Client : AFHTTPRequestOperationManager <NSCoding, NSCopying>
+
+/**
+ Serializer to use to read the oauth token from the response. Defaults to an instance of AFOAuth1ResponseSerializer
+ */
+@property (strong, nonatomic) AFHTTPResponseSerializer *oauthResponseSerializer;
 
 ///---------------------
 /// @name Initialization
@@ -99,7 +105,7 @@ extern NSString * const kAFApplicationLaunchOptionsURLKey;
                                              failure:(void (^)(NSError *error))failure;
 
 /**
- Performs a `NSURLSessionDataTask` to acquire an OAuth request token with the specified URL string, callback URL, access method, and scope.
+ Acquire an OAuth request token with the specified URL string, callback URL, access method, and scope.
  
  @param URLString The URL string.
  @param callbackURL The URL to be set for `oauth_callback`. If `nil`, "oob" (out-of-band) is specified.
@@ -108,7 +114,7 @@ extern NSString * const kAFApplicationLaunchOptionsURLKey;
  @param success A block object to be executed when the request operation finishes successfully. This block has no return value and takes two arguments: the OAuth credential returned by the server, and the response object sent from the server.
  @param failure A block object to be executed when the request operation finishes unsuccessfully, or that finishes successfully, but encountered an error while parsing the response data. This block has no return value and takes a single argument: the error returned from the server.
  */
-- (NSURLSessionDataTask *)acquireOAuthRequestTokenWithURLString:(NSString *)URLString
+- (AFHTTPRequestOperation *)acquireOAuthRequestTokenWithURLString:(NSString *)URLString
                                                     callbackURL:(NSURL *)callbackURL
                                                    accessMethod:(NSString *)accessMethod
                                                           scope:(NSString *)scope
@@ -116,7 +122,7 @@ extern NSString * const kAFApplicationLaunchOptionsURLKey;
                                                         failure:(void (^)(NSError *error))failure;
 
 /**
- Performs a `NSURLSessionDataTask` to acquire an OAuth access token with the specified URL string, request token and access method.
+ Acquire an OAuth access token with the specified URL string, request token and access method.
  
  @param URLString The URL string.
  @param requestToken The request token.
@@ -124,7 +130,7 @@ extern NSString * const kAFApplicationLaunchOptionsURLKey;
  @param success A block object to be executed when the request operation finishes successfully. This block has no return value and takes two arguments: the OAuth credential returned by the server, and the response object sent from the server.
  @param failure A block object to be executed when the request operation finishes unsuccessfully, or that finishes successfully, but encountered an error while parsing the response data. This block has no return value and takes a single argument: the error returned from the server.
  */
-- (NSURLSessionDataTask *)acquireOAuthAccessTokenWithURLString:(NSString *)URLString
+- (AFHTTPRequestOperation *)acquireOAuthAccessTokenWithURLString:(NSString *)URLString
                                                   requestToken:(AFOAuth1Token *)requestToken
                                                   accessMethod:(NSString *)accessMethod
                                                        success:(void (^)(AFOAuth1Token *accessToken, id responseObject))success
